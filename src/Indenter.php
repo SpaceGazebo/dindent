@@ -226,7 +226,7 @@ class Indenter {
         {
             foreach ($this->temporary_replacements_data[$tag_name] as $i => $original)
             {
-                if (false && isset($rules['wrap']))
+                if (isset($rules['wrap']))
                 {
                     $output = str_replace(
                         '<'.$rules['wrap'].'>_'.$tag_name.'_' . ($i + 1) . '_'.$tag_name.'_</'.$rules['wrap'].'>',
