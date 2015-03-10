@@ -2,8 +2,8 @@
 namespace Gajus\Dindent;
 
 /**
- * @link https://github.com/gajus/dindent for the canonical source repository
- * @license https://github.com/gajus/dindent/blob/master/LICENSE BSD 3-Clause
+ * @link https://github.com/gajus/dintent for the canonical source repository
+ * @license https://github.com/gajus/dintent/blob/master/LICENSE BSD 3-Clause
  */
 class Indenter {
     private
@@ -12,7 +12,34 @@ class Indenter {
             'indentation_character' => '    '
         ),
         $inline_elements = array('b', 'big', 'i', 'small', 'tt', 'abbr', 'acronym', 'cite', 'code', 'dfn', 'em', 'kbd', 'strong', 'samp', 'var', 'a', 'bdo', 'br', 'img', 'span', 'sub', 'sup'),
-        $temporary_replacements_script = array(),
+        $temporary_replacements_data = array(),
+        $temporary_replacements_rules = array(
+          // I found that using an underscore in the tagname could break stuff
+          // also any uppercase letters
+          'script' => array(
+              'regex' => '/<script\b[^>]*>([\s\S]*?)<\/script>/mi',
+          ),
+          ///*
+          'style' => array(
+              'regex' => '/<style\b[^>]*>([\s\S]*?)<\/style>/mi',
+          ),
+          'phplongtag' => array(
+              'regex' => '/<\?php\b([\s\S]*?)\?>/mi',
+          ),
+          'phpbladeescapebracketbracketbracket' => array(
+              'regex' => '/\{\{\{([\s\S]*?)\}\}\}/mi',
+          ),
+          'phpbladeescapebracketbracket' => array(
+              'regex' => '/\{\{([\s\S]*?)\}\}/mi',
+          ),
+          'phpbladeescaperacketexclamationexclamation' => array(
+              'regex' => '/\{\!\!([\s\S]*?)\!\!\}/mi',
+          ),
+          'htmlcomment' => array(
+              'regex' => '/<\!\-\-([\s\S]*?)\-\->/mi',
+          ),
+          //*/
+        ),
         $temporary_replacements_inline = array();
 
     const ELEMENT_TYPE_BLOCK = 0;
@@ -60,11 +87,15 @@ class Indenter {
     public function indent ($input) {
         $this->log = array();
 
-        // Dindent does not indent <script> body. Instead, it temporary removes it from the code, indents the input, and restores the script body.
-        if (preg_match_all('/<script\b[^>]*>([\s\S]*?)<\/script>/mi', $input, $matches)) {
-            $this->temporary_replacements_script = $matches[0];
-            foreach ($matches[0] as $i => $match) {
-                $input = str_replace($match, '<script>' . ($i + 1) . '</script>', $input);
+        foreach($this->temporary_replacements_rules as $tag_name => $rules)
+        {
+            $this->temporary_replacements_data[$tag_name] = array();
+            // Dindent does not indent <script> body. Instead, it temporary removes it from the code, indents the input, and restores the script body.
+            if (preg_match_all($rules['regex'], $input, $matches)) {
+                $this->temporary_replacements_data[$tag_name] = $matches[0];
+                foreach ($matches[0] as $i => $match) {
+                    $input = str_replace($match, '<'.$tag_name.'>' . ($i + 1) . '</'.$tag_name.'>', $input);
+                }
             }
         }
 
@@ -156,9 +187,12 @@ class Indenter {
         }
 
         $output = preg_replace('/(<(\w+)[^>]*>)\s*(<\/\2>)/', '\\1\\3', $output);
-
-        foreach ($this->temporary_replacements_script as $i => $original) {
-            $output = str_replace('<script>' . ($i + 1) . '</script>', $original, $output);
+        
+        foreach($this->temporary_replacements_rules as $tag_name => $rules)
+        {
+            foreach ($this->temporary_replacements_data[$tag_name] as $i => $original) {
+                $output = str_replace('<'.$tag_name.'>' . ($i + 1) . '</'.$tag_name.'>', $original, $output);
+            }
         }
 
         foreach ($this->temporary_replacements_inline as $i => $original) {
