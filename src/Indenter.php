@@ -23,17 +23,32 @@ class Indenter {
           'style' => array(
               'regex' => '/<style\b[^>]*>([\s\S]*?)<\/style>/mi',
           ),
+          'divphplongtag' => array( // some of these need to be wrapped in divs, others do not
+              'regex' => '/\s<\?php\b([\s\S]*?)\?>\s/mi', 'wrap' => 'div',
+          ),
           'phplongtag' => array(
               'regex' => '/<\?php\b([\s\S]*?)\?>/mi',
+          ),
+          'divphpbladeescapebracketbracketbracket' => array(
+              'regex' => '/\s\{\{\{([\s\S]*?)\}\}\}\s/mi', 'wrap' => 'div',
           ),
           'phpbladeescapebracketbracketbracket' => array(
               'regex' => '/\{\{\{([\s\S]*?)\}\}\}/mi',
           ),
+          'divphpbladeescapebracketbracket' => array(
+              'regex' => '/\s\{\{([\s\S]*?)\}\}\s/mi', 'wrap' => 'div',
+          ),
           'phpbladeescapebracketbracket' => array(
               'regex' => '/\{\{([\s\S]*?)\}\}/mi',
           ),
+          'divphpbladeescaperacketexclamationexclamation' => array(
+              'regex' => '/\s\{\!\!([\s\S]*?)\!\!\}\s/mi', 'wrap' => 'div',
+          ),
           'phpbladeescaperacketexclamationexclamation' => array(
               'regex' => '/\{\!\!([\s\S]*?)\!\!\}/mi',
+          ),
+          'divhtmlcomment' => array(
+              'regex' => '/\s<\!\-\-([\s\S]*?)\-\->\s/mi', 'wrap' => 'div',
           ),
           'htmlcomment' => array(
               'regex' => '/<\!\-\-([\s\S]*?)\-\->/mi',
@@ -94,7 +109,22 @@ class Indenter {
             if (preg_match_all($rules['regex'], $input, $matches)) {
                 $this->temporary_replacements_data[$tag_name] = $matches[0];
                 foreach ($matches[0] as $i => $match) {
-                    $input = str_replace($match, '<'.$tag_name.'>' . ($i + 1) . '</'.$tag_name.'>', $input);
+                    if (isset($rules['wrap']))
+                    {
+                        $input = str_replace(
+                            $match,
+                            '<'.$rules['wrap'].'>_'.$tag_name.'_' . ($i + 1) . '_'.$tag_name.'_</'.$rules['wrap'].'>',
+                            $input
+                        );
+                    }
+                    else
+                    {
+                        $input = str_replace(
+                            $match,
+                            '_'.$tag_name.'_' . ($i + 1) . '_'.$tag_name.'_',
+                            $input
+                        );
+                    }
                 }
             }
         }
@@ -187,16 +217,32 @@ class Indenter {
         }
 
         $output = preg_replace('/(<(\w+)[^>]*>)\s*(<\/\2>)/', '\\1\\3', $output);
-        
-        foreach($this->temporary_replacements_rules as $tag_name => $rules)
-        {
-            foreach ($this->temporary_replacements_data[$tag_name] as $i => $original) {
-                $output = str_replace('<'.$tag_name.'>' . ($i + 1) . '</'.$tag_name.'>', $original, $output);
-            }
-        }
 
         foreach ($this->temporary_replacements_inline as $i => $original) {
             $output = str_replace('ᐃ' . ($i + 1) . 'ᐃ', $original, $output);
+        }
+
+        foreach($this->temporary_replacements_rules as $tag_name => $rules)
+        {
+            foreach ($this->temporary_replacements_data[$tag_name] as $i => $original)
+            {
+                if (false && isset($rules['wrap']))
+                {
+                    $output = str_replace(
+                        '<'.$rules['wrap'].'>_'.$tag_name.'_' . ($i + 1) . '_'.$tag_name.'_</'.$rules['wrap'].'>',
+                        $original,
+                        $output
+                    );
+                }
+                else
+                {
+                    $output = str_replace(
+                        '_'.$tag_name.'_' . ($i + 1) . '_'.$tag_name.'_',
+                        $original,
+                        $output
+                    );
+                }
+            }
         }
 
         return trim($output);
