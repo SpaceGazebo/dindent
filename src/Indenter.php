@@ -11,44 +11,49 @@ class Indenter {
         $options = array(
             'indentation_character' => '    '
         ),
-        $inline_elements = array('b', 'big', 'i', 'small', 'tt', 'abbr', 'acronym', 'cite', 'code', 'dfn', 'em', 'kbd', 'strong', 'samp', 'var', 'a', 'bdo', 'br', 'img', 'span', 'sub', 'sup'),
+        $inline_elements = array('b', 'big', 'i', 'small', 'tt', 'abbr', 'acronym', 'cite', 'code', 'dfn', 'em', 'kbd', 'strong', 'samp', 'var',
+            //'a',
+            'bdo', 'br', 'img', 'span', 'sub', 'sup'),
         $temporary_replacements_data = array(),
         $temporary_replacements_rules = array(
           // I found that using an underscore in the tagname could break stuff
           // also any uppercase letters
+          'divphpbladedirective' => array(
+              'regex' => '/^\s*\B(@\b\S\S.*)$/m', 'wrap' => 'div',
+          ),
           'script' => array(
-              'regex' => '/<script\b[^>]*>([\s\S]*?)<\/script>/mi',
+              'regex' => '/<script\b[^>]*>([\s\S]*?)<\/script>/mi', 'wrap' => 'div',
           ),
           ///*
           'style' => array(
-              'regex' => '/<style\b[^>]*>([\s\S]*?)<\/style>/mi',
+              'regex' => '/<style\b[^>]*>([\s\S]*?)<\/style>/mi', 'wrap' => 'div',
           ),
           'divphplongtag' => array( // some of these need to be wrapped in divs, others do not
-              'regex' => '/\s<\?php\b([\s\S]*?)\?>\s/mi', 'wrap' => 'div',
+              'regex' => '/^\s*\B<\?php\b([\s\S]*?)\?>\s/mi', 'wrap' => 'div',
           ),
           'phplongtag' => array(
               'regex' => '/<\?php\b([\s\S]*?)\?>/mi',
           ),
           'divphpbladeescapebracketbracketbracket' => array(
-              'regex' => '/\s\{\{\{([\s\S]*?)\}\}\}\s/mi', 'wrap' => 'div',
+              'regex' => '/^\s*\B\{\{\{([\s\S]*?)\}\}\}\s/mi', 'wrap' => 'div',
           ),
           'phpbladeescapebracketbracketbracket' => array(
               'regex' => '/\{\{\{([\s\S]*?)\}\}\}/mi',
           ),
           'divphpbladeescapebracketbracket' => array(
-              'regex' => '/\s\{\{([\s\S]*?)\}\}\s/mi', 'wrap' => 'div',
+              'regex' => '/^\s*\B\{\{([\s\S]*?)\}\}\s/mi', 'wrap' => 'div',
           ),
           'phpbladeescapebracketbracket' => array(
               'regex' => '/\{\{([\s\S]*?)\}\}/mi',
           ),
           'divphpbladeescaperacketexclamationexclamation' => array(
-              'regex' => '/\s\{\!\!([\s\S]*?)\!\!\}\s/mi', 'wrap' => 'div',
+              'regex' => '/^\s*\B\{\!\!([\s\S]*?)\!\!\}\s/mi', 'wrap' => 'div',
           ),
           'phpbladeescaperacketexclamationexclamation' => array(
               'regex' => '/\{\!\!([\s\S]*?)\!\!\}/mi',
           ),
           'divhtmlcomment' => array(
-              'regex' => '/\s<\!\-\-([\s\S]*?)\-\->\s/mi', 'wrap' => 'div',
+              'regex' => '/^\s*\B<\!\-\-([\s\S]*?)\-\->\s/mi', 'wrap' => 'div',
           ),
           'htmlcomment' => array(
               'regex' => '/<\!\-\-([\s\S]*?)\-\->/mi',
@@ -102,16 +107,29 @@ class Indenter {
     public function indent ($input) {
         $this->log = array();
 
+        $x = 1;
+
+        $input = str_replace("<", ' <', $input);
+        $input = str_replace("->", '_____AAAAA_B', $input);
+        $input = str_replace("=>", '_____AAAAB_B', $input);
+        $input = str_replace(">", '> ', $input);
+        $input = str_replace("_____AAAAA_B", '->', $input);
+        $input = str_replace("_____AAAAB_B", '=>', $input);
+
         foreach($this->temporary_replacements_rules as $tag_name => $rules)
         {
             $this->temporary_replacements_data[$tag_name] = array();
             // Dindent does not indent <script> body. Instead, it temporary removes it from the code, indents the input, and restores the script body.
             if (preg_match_all($rules['regex'], $input, $matches)) {
                 $this->temporary_replacements_data[$tag_name] = $matches[0];
+                
                 foreach ($matches[0] as $i => $match) {
+                  
+                    //if ($x > 0) $x--; else return trim($input);
+                    
                     if (isset($rules['wrap']))
                     {
-                        $input = str_replace(
+                        $this->strReplaceOnlyFirst(//$input = str_replace(
                             $match,
                             '<'.$rules['wrap'].'>_'.$tag_name.'_' . ($i + 1) . '_'.$tag_name.'_</'.$rules['wrap'].'>',
                             $input
@@ -119,7 +137,7 @@ class Indenter {
                     }
                     else
                     {
-                        $input = str_replace(
+                        $this->strReplaceOnlyFirst(//$input = str_replace(
                             $match,
                             '_'.$tag_name.'_' . ($i + 1) . '_'.$tag_name.'_',
                             $input
@@ -127,19 +145,34 @@ class Indenter {
                     }
                 }
             }
+
         }
+        
+        //return trim($input);
 
         // Removing double whitespaces to make the source code easier to read.
         // With exception of <pre>/ CSS white-space changing the default behaviour, double whitespace is meaningless in HTML output.
         // This reason alone is sufficient not to use Dindent in production.
-        $input = str_replace("\t", '', $input);
+        $input = str_replace("\t", '    ', $input);
         $input = preg_replace('/\s{2,}/', ' ', $input);
 
         // Remove inline elements and replace them with text entities.
         if (preg_match_all('/<(' . implode('|', $this->inline_elements) . ')[^>]*>(?:[^<]*)<\/\1>/', $input, $matches)) {
+            // if it's too long, it's not inline.
+            
+            var_dump($matches[0]);
+            
+            $matches[0] = array_filter($matches[0],function($match)
+            {
+                //return true;
+                return mb_strlen($match) < 64;
+            });
+            
+            
+            
             $this->temporary_replacements_inline = $matches[0];
             foreach ($matches[0] as $i => $match) {
-                $input = str_replace($match, 'ᐃ' . ($i + 1) . 'ᐃ', $input);
+                $input = str_replace($match, 'ᐃᐃ' . ($i + 1) . 'ᐃ', $input);
             }
         }
 
@@ -153,6 +186,8 @@ class Indenter {
             $indentation_level = $next_line_indentation_level;
 
             $patterns = array(
+                // block tag
+                '/^\B(@\b\S\S.*)/' => static::MATCH_INDENT_NO,
                 // block tag
                 '/^(<([a-z]+)(?:[^>]*)>(?:[^<]*)<\/(?:\2)>)/' => static::MATCH_INDENT_NO,
                 // DOCTYPE
@@ -215,30 +250,32 @@ class Indenter {
         if ($interpreted_input !== $input) {
             throw new Exception\RuntimeException('Did not reproduce the exact input.');
         }
-
+        
         $output = preg_replace('/(<(\w+)[^>]*>)\s*(<\/\2>)/', '\\1\\3', $output);
 
         foreach ($this->temporary_replacements_inline as $i => $original) {
-            $output = str_replace('ᐃ' . ($i + 1) . 'ᐃ', $original, $output);
+            $output = str_replace('ᐃᐃ' . ($i + 1) . 'ᐃ', $original, $output);
         }
 
-        foreach($this->temporary_replacements_rules as $tag_name => $rules)
+        foreach(array_reverse($this->temporary_replacements_rules) as $tag_name => $rules)
         {
-            foreach ($this->temporary_replacements_data[$tag_name] as $i => $original)
+            foreach (array_reverse($this->temporary_replacements_data[$tag_name]) as $imc => $original)
             {
+                $i = count($this->temporary_replacements_data[$tag_name]) - $imc;
+                
                 if (isset($rules['wrap']))
                 {
-                    $output = str_replace(
-                        '<'.$rules['wrap'].'>_'.$tag_name.'_' . ($i + 1) . '_'.$tag_name.'_</'.$rules['wrap'].'>',
-                        $original,
+                    $this->strReplaceOnlyFirst(//$input = str_replace(
+                        '<'.$rules['wrap'].'>_'.$tag_name.'_' . ($i) . '_'.$tag_name.'_</'.$rules['wrap'].'>',
+                        trim($original),
                         $output
                     );
                 }
                 else
                 {
-                    $output = str_replace(
-                        '_'.$tag_name.'_' . ($i + 1) . '_'.$tag_name.'_',
-                        $original,
+                    $this->strReplaceOnlyFirst(//$input = str_replace(
+                        '_'.$tag_name.'_' . ($i) . '_'.$tag_name.'_',
+                        trim($original),
                         $output
                     );
                 }
@@ -246,6 +283,14 @@ class Indenter {
         }
 
         return trim($output);
+    }
+    
+    protected function strReplaceOnlyFirst($needle,$replacement,&$haystack)
+    {
+        $pos = strpos($haystack,$needle);
+        if ($pos !== false) {
+            $haystack = substr_replace($haystack,$replacement,$pos,strlen($needle));
+        }
     }
 
     /**
