@@ -9,6 +9,16 @@ Dindent (aka., "HTML beautifier") will indent HTML for development and testing. 
 
 Try it in the [sandbox](http://gajus.com/sandbox/dindent/sandbox/).
 
+## THIS IS A FORK
+
+This fork focuses on extending PHP/Laravel/Blade functionality for the purpose of keeping ``app/views/*.blade.php`` and ``resources/views/*.blade.php`` prettified. There is no intention to include this as part of the blade compiler (we use the blade minifier script anyways). This is only so that I don't have to yell at my dev team when they commit non-aligned chaos in blade files.
+
+Intended features:
+    * auto word break long paragraphs/htmls after ``workingdefault(80)`` characters
+    * pretty format JS and CSS inside script and style tags
+    * basic HTML validator
+    * Blade compatibility
+
 ## Abuse Case
 
 Dindent will not sanitize or otherwise manipulate your output beyond indentation.
