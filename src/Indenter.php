@@ -11,16 +11,61 @@ class Indenter {
         $options = array(
             'indentation_character' => '    '
         ),
-        $inline_elements = array('b', 'big', 'i', 'small', 'tt', 'abbr', 'acronym', 'cite', 'code', 'dfn', 'em', 'kbd', 'strong', 'samp', 'var',
+        $inline_elements = array(
+            //'b', 'big', 'i', 'small', 'tt', 'abbr', 'acronym', 'cite', 'code', 'dfn', 'em', 'kbd', 'strong', 'samp', 'var',
             //'a',
-            'bdo', 'br', 'img', 'span', 'sub', 'sup'),
+            //'bdo', 'br', 'img', 'span', 'sub', 'sup'
+        ),
         $temporary_replacements_data = array(),
         $temporary_replacements_rules = array(
           // I found that using an underscore in the tagname could break stuff
           // also any uppercase letters
-          'divphpbladedirective' => array(
-              'regex' => '/^\s*\B(@\b\S\S.*)$/m', 'wrap' => 'div',
+          // (@if(?=[^@<][A-Za-z]).*(?<![^@<][A-Za-z])) 
+          // (@if(?![^@<][^A-Za-z]).*(?=[@<][A-Za-z]))
+          // (@if.*?(?=(@[A-Za-z]|<[A-Za-z])))
+          'divphpbladedirectiveif' => array(
+              'regex' => '/(@if\b.*?(?=(@[A-Za-z]|<[A-Za-z])))/', 'replace' => '<div data-replace-key=":replace_key">',
           ),
+          'divphpbladedirectiveunless' => array(
+              'regex' => '/(@unless\b.*?(?=(@[A-Za-z]|<[A-Za-z])))/', 'replace' => '<div data-replace-key=":replace_key">',
+          ),
+          'divphpbladedirectiveforeach' => array(
+              'regex' => '/(@foreach\b.*?(?=(@[A-Za-z]|<[A-Za-z])))/', 'replace' => '<div data-replace-key=":replace_key">',
+          ),
+          'divphpbladedirectivesection' => array(
+              'regex' => '/(@section\b.*?(?=(@[A-Za-z]|<[A-Za-z])))/', 'replace' => '<div data-replace-key=":replace_key">',
+          ),
+          'divphpbladedirectiveyeild' => array(
+              'regex' => '/(@yeild\b.*?(?=(@[A-Za-z]|<[A-Za-z])))/', 'wrap' => 'div',
+          ),
+          'divphpbladedirectiveyield' => array(
+              'regex' => '/(@yield\b.*?(?=(@[A-Za-z]|<[A-Za-z])))/', 'wrap' => 'div',
+          ),
+          'divphpbladedirectiveelseif' => array(
+              'regex' => '/(@elseif\b.*?(?=(@[A-Za-z]|<[A-Za-z])))/', 'replace' => '</div data-replace-key=":replace_key"><div data-replace-key=":replace_key">',
+          ),
+          'divphpbladedirectiveelse' => array(
+              'regex' => '/(@else)/', 'replace' => '</div data-replace-key=":replace_key"><div data-replace-key=":replace_key">',
+          ),
+          'divphpbladedirectiveendif' => array(
+              'regex' => '/(@endif\b)/', 'replace' => '</div data-replace-key=":replace_key">',
+          ),
+          'divphpbladedirectiveendunless' => array(
+              'regex' => '/(@endunless\b)/', 'replace' => '</div data-replace-key=":replace_key">',
+          ),
+          'divphpbladedirectiveendforeach' => array(
+              'regex' => '/(@endforeach\b)/', 'replace' => '</div data-replace-key=":replace_key">',
+          ),
+          'divphpbladedirectiveshow' => array(
+              'regex' => '/(@show\b)/', 'replace' => '</div data-replace-key=":replace_key">',
+          ),
+          'divphpbladedirectivestop' => array(
+              'regex' => '/(@stop\b)/', 'replace' => '</div data-replace-key=":replace_key">',
+          ),
+          
+          //'divphpbladedirective' => array(
+          //   'regex' => '/^\s*\B(@\b\S\S.*)$/m', 'wrap' => 'div',
+          //),
           'script' => array(
               'regex' => '/<script\b[^>]*>([\s\S]*?)<\/script>/mi', 'wrap' => 'div',
           ),
@@ -69,6 +114,7 @@ class Indenter {
     const MATCH_INDENT_DECREASE = 1;
     const MATCH_INDENT_INCREASE = 2;
     const MATCH_DISCARD = 3;
+    const MATCH_INDENT_BOTH = 4;
 
     /**
      * @param array $options
@@ -127,11 +173,22 @@ class Indenter {
                   
                     //if ($x > 0) $x--; else return trim($input);
                     
-                    if (isset($rules['wrap']))
+                    $dataKey = '_'.$tag_name.'_' . ($i + 1) . '_'.$tag_name.'_';
+                    
+                    if (isset($rules['replace']))
+                    {
+                        continue;
+                        $this->strReplaceOnlyFirst(//$input = str_replace(
+                            $match,
+                            str_replace(':replace_key',$dataKey,$rules['replace']),
+                            $input
+                        );
+                    }
+                    elseif (isset($rules['wrap']))
                     {
                         $this->strReplaceOnlyFirst(//$input = str_replace(
                             $match,
-                            '<'.$rules['wrap'].'>_'.$tag_name.'_' . ($i + 1) . '_'.$tag_name.'_</'.$rules['wrap'].'>',
+                            '<'.$rules['wrap'].'>'.$dataKey.'</'.$rules['wrap'].'>',
                             $input
                         );
                     }
@@ -139,7 +196,7 @@ class Indenter {
                     {
                         $this->strReplaceOnlyFirst(//$input = str_replace(
                             $match,
-                            '_'.$tag_name.'_' . ($i + 1) . '_'.$tag_name.'_',
+                            $dataKey,
                             $input
                         );
                     }
@@ -178,16 +235,111 @@ class Indenter {
 
         $subject = $input;
 
-        $output = '';
+        $output = $this->setIndentsByPattern($subject,$matches);
 
+        $interpreted_input = '';
+        foreach ($this->log as $e) {
+            $interpreted_input .= $e['match'];
+        }
+
+        if ($interpreted_input !== $input) {
+            throw new Exception\RuntimeException('Did not reproduce the exact input.');
+        }
+        
+        $output = preg_replace('/(<(\w+)[^>]*>)\s*(<\/\2>)/', '\\1\\3', $output);
+
+        foreach ($this->temporary_replacements_inline as $i => $original) {
+            $output = str_replace('ᐃᐃ' . ($i + 1) . 'ᐃ', $original, $output);
+        }
+
+        //$attempts = 0 ;
+        //while($attempts--)
+        {
+        foreach(array_reverse($this->temporary_replacements_rules) as $tag_name => $rules)
+        {
+            foreach (array_reverse($this->temporary_replacements_data[$tag_name]) as $imc => $original)
+            {
+                $i = count($this->temporary_replacements_data[$tag_name]) - $imc;
+
+                $dataKey = '_'.$tag_name.'_' . ($i) . '_'.$tag_name.'_';
+                
+                if (isset($rules['replace']))
+                {
+                    $replace_with = str_replace(':replace_key',$dataKey,$rules['replace']);
+                    
+                    if (strpos($rules['replace'],'><'))
+                    {
+                        $replace_with = explode('\s*',str_replace('><','>\s*<',$replace_with));
+                        
+                        $replace_with = array_map(function($string)
+                        {
+                            return preg_quote($string, '/');
+                        },$replace_with);
+                        
+                        $replace_with = '/'.implode('\s*',$replace_with).'/m';
+                        
+                        $this->strRegexReplaceOnlyFirst(//$input = str_replace(
+                            $replace_with,
+                            trim($original),
+                            $output
+                        );
+                    }
+                    else
+                    {
+
+                        $this->strReplaceOnlyFirst(//$input = str_replace(
+                            $replace_with,
+                            trim($original),
+                            $output
+                        );
+                    }
+                    
+                }
+                elseif (isset($rules['wrap']))
+                {
+                    $this->strReplaceOnlyFirst(//$input = str_replace(
+                        '<'.$rules['wrap'].'>'.$dataKey.'</'.$rules['wrap'].'>',
+                        trim($original),
+                        $output
+                    );
+                }
+                else
+                {
+                    $this->strReplaceOnlyFirst(//$input = str_replace(
+                        $dataKey,
+                        trim($original),
+                        $output
+                    );
+                }
+            }
+        }
+        }
+
+        return trim($output);
+    }
+    
+    protected function setIndentsByPattern(&$subject,&$matches)
+    {
+        $output = '';
+        
         $next_line_indentation_level = 0;
 
         do {
             $indentation_level = $next_line_indentation_level;
 
             $patterns = array(
-                // block tag
-                '/^\B(@\b\S\S.*)/' => static::MATCH_INDENT_NO,
+                // @elseif
+                '/^\s(@elseif\b)/' => static::MATCH_INDENT_BOTH,
+                // @else
+                '/^\s(@else\b)/' => static::MATCH_INDENT_BOTH,
+                // @foreach
+                '/^\s(@foreach\b)/' => static::MATCH_INDENT_INCREASE,
+                // @if
+                '/^\s(@if\b)/' => static::MATCH_INDENT_INCREASE,
+                // @endforeach
+                '/^\s(@endforeach\b)/' => static::MATCH_INDENT_DECREASE,
+                // @endif
+                '/^\s(@endif\b)/' => static::MATCH_INDENT_DECREASE,
                 // block tag
                 '/^(<([a-z]+)(?:[^>]*)>(?:[^<]*)<\/(?:\2)>)/' => static::MATCH_INDENT_NO,
                 // DOCTYPE
@@ -205,7 +357,7 @@ class Indenter {
                 // text node
                 '/([^<]+)/' => static::MATCH_INDENT_NO
             );
-            $rules = array('NO', 'DECREASE', 'INCREASE', 'DISCARD');
+            $rules = array('NO', 'DECREASE', 'INCREASE', 'DISCARD', 'BOTH');
 
             foreach ($patterns as $pattern => $rule) {
                 if ($match = preg_match($pattern, $subject, $matches)) {
@@ -227,66 +379,42 @@ class Indenter {
                     } else if ($rule === static::MATCH_INDENT_DECREASE) {
                         $next_line_indentation_level--;
                         $indentation_level--;
-                    } else {
+                    } else if ($rule === static::MATCH_INDENT_INCREASE) {
                         $next_line_indentation_level++;
                     }
 
                     if ($indentation_level < 0) {
                         $indentation_level = 0;
                     }
+                    
+                    //echo str_repeat($this->options['indentation_character'], $indentation_level) . $matches[0] . "\n";
 
-                    $output .= str_repeat($this->options['indentation_character'], $indentation_level) . $matches[0] . "\n";
+                    if (static::MATCH_INDENT_BOTH === $rule)
+                    {
+                      $output .= str_repeat($this->options['indentation_character'], max(0,$indentation_level - 1)) . $matches[0] . "\n";
+                    }
+                    else
+                    {
+                      $output .= str_repeat($this->options['indentation_character'], $indentation_level) . $matches[0] . "\n";
+                    }
 
                     break;
                 }
             }
         } while ($match);
-
-        $interpreted_input = '';
-        foreach ($this->log as $e) {
-            $interpreted_input .= $e['match'];
-        }
-
-        if ($interpreted_input !== $input) {
-            throw new Exception\RuntimeException('Did not reproduce the exact input.');
-        }
         
-        $output = preg_replace('/(<(\w+)[^>]*>)\s*(<\/\2>)/', '\\1\\3', $output);
-
-        foreach ($this->temporary_replacements_inline as $i => $original) {
-            $output = str_replace('ᐃᐃ' . ($i + 1) . 'ᐃ', $original, $output);
-        }
-
-        foreach(array_reverse($this->temporary_replacements_rules) as $tag_name => $rules)
-        {
-            foreach (array_reverse($this->temporary_replacements_data[$tag_name]) as $imc => $original)
-            {
-                $i = count($this->temporary_replacements_data[$tag_name]) - $imc;
-                
-                if (isset($rules['wrap']))
-                {
-                    $this->strReplaceOnlyFirst(//$input = str_replace(
-                        '<'.$rules['wrap'].'>_'.$tag_name.'_' . ($i) . '_'.$tag_name.'_</'.$rules['wrap'].'>',
-                        trim($original),
-                        $output
-                    );
-                }
-                else
-                {
-                    $this->strReplaceOnlyFirst(//$input = str_replace(
-                        '_'.$tag_name.'_' . ($i) . '_'.$tag_name.'_',
-                        trim($original),
-                        $output
-                    );
-                }
-            }
-        }
-
-        return trim($output);
+        return $output;
     }
     
+    protected function strRegexReplaceOnlyFirst($regex_needle,$replacement,&$haystack)
+    {
+        echo str_replace("\n",'\n','regex '.$regex_needle.' => '.$replacement),"\n";
+
+        $haystack = preg_replace($regex_needle,$replacement,$haystack,1);
+    }
     protected function strReplaceOnlyFirst($needle,$replacement,&$haystack)
     {
+        echo str_replace("\n",'\n','string '.$needle.' => '.str_limit($replacement,160,'...')),"\n";
         $pos = strpos($haystack,$needle);
         if ($pos !== false) {
             $haystack = substr_replace($haystack,$replacement,$pos,strlen($needle));
